@@ -1,6 +1,7 @@
 import argparse
 import time
 from sys import platform
+from utils.track_utils import initiate_tracker, detect_key_points
 
 from models import *
 from utils.datasets import *
@@ -18,7 +19,8 @@ def detect(
         nms_thres=0.5,
         save_txt=False,
         save_images=True,
-        webcam=False
+        webcam=False,
+        video=False
 ):
     device = torch_utils.select_device()
     if os.path.exists(output):
@@ -41,12 +43,17 @@ def detect(
     if webcam:
         save_images = False
         dataloader = LoadWebcam(img_size=img_size)
+    elif video:
+        save_images = True
+        dataloader = LoadVideo(path=images, img_size=img_size)
     else:
         dataloader = LoadImages(images, img_size=img_size)
 
     # Get classes and colors
     classes = load_classes(parse_data_cfg(data_cfg)['names'])
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(classes))]
+
+    # tracker = initiate_tracker()
 
     for i, (path, img, im0, vid_cap) in enumerate(dataloader):
         t = time.time()
@@ -77,10 +84,15 @@ def detect(
 
                 # Add bbox to the image
                 label = '%s %.2f' % (classes[int(cls)], conf)
-                plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
+
+                # kp,_ = detect_key_points(im0, xyxy, tracker)
+
+                # cv2.drawKeypoints(im0, kp, im0, color=(255, 0, 0))
+                if(cls!=6):
+                    plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
 
         print('Done. (%.3fs)' % (time.time() - t))
-
+        cv2.imshow('frame', im0)
         if webcam:  # Show live webcam
             cv2.imshow(weights, im0)
 
@@ -96,6 +108,7 @@ def detect(
                     vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'avc1'), fps, (width, height))
                 vid_writer.write(im0)
 
+
             else:
                 cv2.imwrite(save_path, im0)
 
@@ -105,9 +118,9 @@ def detect(
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cfg', type=str, default='cfg/yolov3-spp.cfg', help='cfg file path')
-    parser.add_argument('--data-cfg', type=str, default='data/coco.data', help='coco.data file path')
-    parser.add_argument('--weights', type=str, default='weights/yolov3-spp.weights', help='path to weights file')
+    parser.add_argument('--cfg', type=str, default='cfg/traffic.cfg', help='cfg file path')
+    parser.add_argument('--data-cfg', type=str, default='data/traffic.data', help='coco.data file path')
+    parser.add_argument('--weights', type=str, default='weights/best.pt', help='path to weights file')
     parser.add_argument('--images', type=str, default='data/samples', help='path to images')
     parser.add_argument('--img-size', type=int, default=416, help='size of each image dimension')
     parser.add_argument('--conf-thres', type=float, default=0.5, help='object confidence threshold')

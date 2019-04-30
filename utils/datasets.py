@@ -128,6 +128,42 @@ class LoadWebcam:  # for inference
         return 0
 
 
+class LoadVideo:  # for inference
+    def __init__(self,path, img_size=416):
+        self.cam = cv2.VideoCapture(path)
+        self.height = img_size
+
+    def __iter__(self):
+        self.count = -1
+        return self
+
+    def __next__(self):
+        self.count += 1
+        if cv2.waitKey(1) == 27:  # esc to quit
+            cv2.destroyAllWindows()
+            raise StopIteration
+
+        # Read image
+        ret_val, img0 = self.cam.read()
+        assert ret_val, 'video Error'
+        img_path = 'video_%g.jpg' % self.count
+        # img0 = cv2.flip(img0, 1)  # flip left-right
+
+        # Padded resize
+        img, _, _, _ = letterbox(img0, height=self.height)
+
+        # Normalize RGB
+        img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB
+        img = np.ascontiguousarray(img, dtype=np.float32)  # uint8 to float32
+        img /= 255.0  # 0 - 255 to 0.0 - 1.0
+
+        return img_path, img, img0, None
+
+    def __len__(self):
+        return 0
+
+
+
 class LoadImagesAndLabels(Dataset):  # for training/testing
     def __init__(self, path, img_size=416, augment=False):
         with open(path, 'r') as file:
@@ -243,6 +279,10 @@ def letterbox(img, height=416, color=(127.5, 127.5, 127.5)):
     top, bottom = round(dh - 0.1), round(dh + 0.1)
     left, right = round(dw - 0.1), round(dw + 0.1)
     img = cv2.resize(img, new_shape, interpolation=cv2.INTER_AREA)  # resized, no border
+    #hack
+    divide_point = new_shape[1]//4
+    img[:divide_point,:,:]=128
+    #hack
     img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # padded square
     return img, ratio, dw, dh
 
