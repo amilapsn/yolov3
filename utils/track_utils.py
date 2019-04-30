@@ -4,7 +4,7 @@ import time
 
 NO_OF_CLASSES = 7
 DISTANCE_THRESHOLD = 50
-OLD_LIMIT = 1
+OLD_LIMIT = 5
 
 
 class NewBBox:
