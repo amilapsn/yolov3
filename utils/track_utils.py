@@ -1,10 +1,12 @@
 import cv2
 import numpy as np
 import time
+import torch
+from utils.utils import bbox_iou
 
 NO_OF_CLASSES = 7
 DISTANCE_THRESHOLD = 50
-OLD_LIMIT = 5
+OLD_LIMIT = 60
 
 
 class NewBBox:
@@ -77,8 +79,11 @@ def detect_key_points(image,bbox,tracker):
 
 
 def match_two_boxes(bf, desc1, desc2):
-    matches = bf.match(desc1, desc2)
-    return get_matching_distance(sorted(matches, key=lambda x: x.distance))
+    if (type(desc1)!=type(None)) and (type(desc2)!=type(None)):
+        matches = bf.match(desc1, desc2)
+        return get_matching_distance(sorted(matches, key=lambda x: x.distance))
+    else:
+        return(float('inf'))
 
 
 def get_matching_distance(match_list):
@@ -176,5 +181,19 @@ def detect_key_points_crop(image,bbox,tracker):
 def print_id(img, tracked_bbox_list):
     for tbb in tracked_bbox_list:
         label = tbb.name
-        c = tbb.centroid_list[-1]
-        cv2.putText(img, label, (int(c[0]), int(c[1]) - 2), 0, 1, [0, 255, 0], thickness=2, lineType=cv2.LINE_AA)
+        if(tbb.frames_absent==0):
+            c = tbb.centroid_list[-1]
+            cv2.putText(img, label, (int(c[0]), int(c[1]) - 2), 0, 1, [0, 255, 0], thickness=2, lineType=cv2.LINE_AA)
+
+def inter_cls_nms(detections, threshold=0.8):
+    # detections are expected to be sorted (max to min in this function since the previous function does this
+    # (x1, y1, x2, y2, object_conf, class_conf, class)
+    det_max=[]
+    while(detections.shape[0]):
+        det_max.append(detections[0,:])
+        iou = bbox_iou(detections[0,:],detections[:,:])
+        print(iou)
+        detections = detections[iou<threshold,:]
+    det_max = torch.cat(det_max).reshape((-1,7))
+    return det_max
+

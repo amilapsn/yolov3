@@ -6,7 +6,7 @@ from models import *
 from utils.datasets import *
 from utils.utils import *
 from utils.track_utils import initiate_tracker, detect_key_points_crop, initiate_matcher
-from utils.track_utils import NewBBox, track_bboxes, print_id
+from utils.track_utils import NewBBox, track_bboxes, print_id, inter_cls_nms
 
 
 def detect(
@@ -69,10 +69,14 @@ def detect(
             return
         pred, _ = model(img)
         detections = non_max_suppression(pred, conf_thres, nms_thres)[0]
+        if detections is not None and len(detections) > 0:
+            indices = detections[:, 6] != 6
+            detections = detections[indices, :]
 
         new_bbox_list = []
 
         if detections is not None and len(detections) > 0:
+            detections = inter_cls_nms(detections, 0.6)
             # Rescale boxes from 416 to true image size
             scale_coords(img_size, detections[:, :4], im0.shape).round()
 
@@ -98,7 +102,7 @@ def detect(
 
         tracked_bbox_list = track_bboxes(bf_Matcher, tracked_bbox_list, new_bbox_list)
         print_id(im0, tracked_bbox_list)
-
+        cv2.putText(im0, str(i), (100, 100), 0, 1, [0, 255, 0], thickness=2, lineType=cv2.LINE_AA)
         print('Done. (%.3fs)' % (time.time() - t))
         cv2.imshow('frame', im0)
         if webcam:  # Show live webcam

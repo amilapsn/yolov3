@@ -1,7 +1,7 @@
 import time
 
 from utils.track_utils import initiate_tracker, detect_key_points_crop, initiate_matcher
-from utils.track_utils import NewBBox, track_bboxes, print_id
+from utils.track_utils import NewBBox, track_bboxes, print_id, inter_cls_nms
 
 from models import *
 from utils.datasets import *
@@ -41,7 +41,9 @@ for i, (path, img, im0, vid_cap) in enumerate(dataloader):
     img = torch.from_numpy(img).unsqueeze(0).to(device)
     pred, _ = model(img)
     detections = non_max_suppression(pred, conf_thres, nms_thres)[0]
-
+    indices = detections[:, 6] != 6
+    detections = detections[indices,:]
+    detections = inter_cls_nms(detections,0.8)
     new_bbox_list =[]
 
     if detections is not None and len(detections) > 0:
