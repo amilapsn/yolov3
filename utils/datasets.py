@@ -279,10 +279,11 @@ def letterbox(img, height=416, color=(127.5, 127.5, 127.5)):
     top, bottom = round(dh - 0.1), round(dh + 0.1)
     left, right = round(dw - 0.1), round(dw + 0.1)
     img = cv2.resize(img, new_shape, interpolation=cv2.INTER_AREA)  # resized, no border
-    #hack
-    divide_point = new_shape[1]//4
-    img[:divide_point,:,:]=128
-    #hack
+    # hack
+    # divide_point = new_shape[1]//3
+    # divide_point = 70
+    # img[:divide_point,:,:]=128
+    # #hack
     img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # padded square
     return img, ratio, dw, dh
 

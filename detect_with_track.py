@@ -6,8 +6,15 @@ from models import *
 from utils.datasets import *
 from utils.utils import *
 from utils.track_utils import initiate_tracker, detect_key_points_crop, initiate_matcher
-from utils.track_utils import NewBBox, track_bboxes, print_id, inter_cls_nms
+from utils.track_utils import NewBBox, track_bboxes, print_id, inter_cls_nms, matrix_based_track_bboxes
+from utils.path_visualization_utils import draw_path, print_counts
+from sklearn.externals import joblib
 
+output_file = open("output/validation_output.txt",'w')
+blank_frame = cv2.imread("blank_frame0.png")
+
+calibration_params = joblib.load("weights/calibration_output.joblib")
+lane_list = calibration_params['lane_list']
 
 def detect(
         cfg,
@@ -54,13 +61,15 @@ def detect(
     classes = load_classes(parse_data_cfg(data_cfg)['names'])
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(classes))]
 
-    tracker = initiate_tracker(500)
+    tracker = initiate_tracker(1000)
     bf_Matcher = initiate_matcher()
     tracked_bbox_list = []
+    count_list = np.zeros(len(classes),int)
 
     for i, (path, img, im0, vid_cap) in enumerate(dataloader):
         t = time.time()
         save_path = str(Path(output) / Path(path).name)
+        im_copy = im0.copy()
 
         # Get detections
         img = torch.from_numpy(img).unsqueeze(0).to(device)
@@ -69,6 +78,8 @@ def detect(
             return
         pred, _ = model(img)
         detections = non_max_suppression(pred, conf_thres, nms_thres)[0]
+
+        # bicycle hack
         if detections is not None and len(detections) > 0:
             indices = detections[:, 6] != 6
             detections = detections[indices, :]
@@ -94,17 +105,25 @@ def detect(
                 # Add bbox to the image
                 label = '%s %.2f' % (classes[int(cls)], conf)
 
-                kp, des = detect_key_points_crop(im0, xyxy, tracker)
+                kp, des = detect_key_points_crop(im_copy, xyxy, tracker)
+                if len(kp)< 10:
+                    continue
+                # print("key_point_length : ", len(kp))
                 new_bbox_list.append(NewBBox(kp, des, int(cls), float(conf), xyxy))
-
 
                 plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
 
-        tracked_bbox_list = track_bboxes(bf_Matcher, tracked_bbox_list, new_bbox_list)
+        tracked_bbox_list, count_list = matrix_based_track_bboxes(bf_Matcher, tracked_bbox_list, new_bbox_list,
+                                                                  count_list, classes, blank_frame)
+
         print_id(im0, tracked_bbox_list)
-        cv2.putText(im0, str(i), (100, 100), 0, 1, [0, 255, 0], thickness=2, lineType=cv2.LINE_AA)
+        print_counts(im0, i, count_list, classes, calibration_params)
         print('Done. (%.3fs)' % (time.time() - t))
-        cv2.imshow('frame', im0)
+
+        # Display the resulting tracking frame
+        cv2.imshow('Tracking', im0)
+        cv2.waitKey(1)
+
         if webcam:  # Show live webcam
             cv2.imshow(weights, im0)
 
@@ -123,7 +142,8 @@ def detect(
 
             else:
                 cv2.imwrite(save_path, im0)
-
+    cv2.imwrite("path.png", blank_frame)
+    output_file.close()
     if save_images and platform == 'darwin':  # macos
         os.system('open ' + output + ' ' + save_path)
 
@@ -134,8 +154,8 @@ if __name__ == '__main__':
     parser.add_argument('--data-cfg', type=str, default='data/traffic.data', help='coco.data file path')
     parser.add_argument('--weights', type=str, default='weights/best.pt', help='path to weights file')
     parser.add_argument('--images', type=str, default='data/samples', help='path to images')
-    parser.add_argument('--img-size', type=int, default=416, help='size of each image dimension')
-    parser.add_argument('--conf-thres', type=float, default=0.5, help='object confidence threshold')
+    parser.add_argument('--img-size', type=int, default=704, help='size of each image dimension')
+    parser.add_argument('--conf-thres', type=float, default=0.56, help='object confidence threshold')
     parser.add_argument('--nms-thres', type=float, default=0.5, help='iou threshold for non-maximum suppression')
     opt = parser.parse_args()
     print(opt)

@@ -1,14 +1,17 @@
 import argparse
 import time
 from sys import platform
-from utils.track_utils import initiate_tracker, detect_key_points
+from kalman_tracker.tracker import Tracker
 from utils.path_visualization_utils import get_str_from_tensor
 
 from models import *
 from utils.datasets import *
 from utils.utils import *
 
-op_file = open("bboxes.txt",'w')
+track_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0),
+                    (0, 255, 255), (255, 0, 255), (255, 127, 255),
+                    (127, 0, 255), (127, 0, 127)]
+
 def detect(
         cfg,
         data_cfg,
@@ -54,10 +57,10 @@ def detect(
     classes = load_classes(parse_data_cfg(data_cfg)['names'])
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(classes))]
 
-    # tracker = initiate_tracker()
+    tracker =Tracker(dist_thresh=100,max_frames_to_skip=20, max_trace_length=60,trackIdCount=100)
 
     for i, (path, img, im0, vid_cap) in enumerate(dataloader):
-        op_file.writelines(str(i)+'\n')
+
         t = time.time()
         save_path = str(Path(output) / Path(path).name)
 
@@ -79,6 +82,7 @@ def detect(
                 print('%g %ss' % (n, classes[int(c)]), end=', ')
 
             # Draw bounding boxes and labels of detections
+            centers = []
             for *xyxy, conf, cls_conf, cls in detections:
                 if save_txt:  # Write to file
                     with open(save_path + '.txt', 'a') as file:
@@ -87,17 +91,37 @@ def detect(
                 # Add bbox to the image
                 label = '%s %.2f' % (classes[int(cls)], conf)
 
-                # kp,_ = detect_key_points(im0, xyxy, tracker)
-
-                # cv2.drawKeypoints(im0, kp, im0, color=(255, 0, 0))
                 if(cls!=6):
                     plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
-                    string = get_str_from_tensor(xyxy)
-                    op_file.writelines(string+'\n')
+                    centroid = np.array((int(xyxy[0] + xyxy[2]) / 2, int(xyxy[1] + xyxy[3]) / 2)).reshape((2, 1))
+                    centers.append(centroid)
+
+        if (len(centers) > 0):
+
+            # Track object using Kalman Filter
+            tracker.Update(centers)
+
+            # For identified object tracks draw tracking line
+            # Use various colors to indicate different track_id
+            for i in range(len(tracker.tracks)):
+                if (len(tracker.tracks[i].trace) > 1):
+                    for j in range(len(tracker.tracks[i].trace) - 1):
+                        # Draw trace line
+                        x1 = tracker.tracks[i].trace[j][0][0]
+                        y1 = tracker.tracks[i].trace[j][1][0]
+                        x2 = tracker.tracks[i].trace[j + 1][0][0]
+                        y2 = tracker.tracks[i].trace[j + 1][1][0]
+                        clr = tracker.tracks[i].track_id % 9
+                        cv2.line(im0, (int(x1), int(y1)), (int(x2), int(y2)),
+                                 track_colors[clr], 2)
+
+            # Display the resulting tracking frame
+            cv2.imshow('Tracking', im0)
+            cv2.waitKey(1)
+
 
 
         print('Done. (%.3fs)' % (time.time() - t))
-        cv2.imshow('frame', im0)
         if webcam:  # Show live webcam
             cv2.imshow(weights, im0)
 
@@ -116,7 +140,7 @@ def detect(
 
             else:
                 cv2.imwrite(save_path, im0)
-    op_file.close()
+
     print("Finished")
     if save_images and platform == 'darwin':  # macos
         os.system('open ' + output + ' ' + save_path)
