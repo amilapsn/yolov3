@@ -1,4 +1,5 @@
-import argparse
+from __future__ import print_function
+import argparse, sys
 import time
 from sys import platform
 
@@ -8,13 +9,15 @@ from utils.utils import *
 from utils.track_utils import initiate_tracker, detect_key_points_crop, initiate_matcher
 from utils.track_utils import NewBBox, track_bboxes, print_id, inter_cls_nms, matrix_based_track_bboxes
 from utils.path_visualization_utils import draw_path, print_counts
+from utils.logging import Logger
 from sklearn.externals import joblib
 
-output_file = open("output/validation_output.txt",'w')
 blank_frame = cv2.imread("blank_frame0.png")
 
 calibration_params = joblib.load("weights/calibration_output.joblib")
 lane_list = calibration_params['lane_list']
+
+sys.stdout = Logger("logs/validation_output.txt")
 
 def detect(
         cfg,
@@ -114,7 +117,7 @@ def detect(
                 plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
 
         tracked_bbox_list, count_list = matrix_based_track_bboxes(bf_Matcher, tracked_bbox_list, new_bbox_list,
-                                                                  count_list, classes, blank_frame)
+                                                                  count_list, classes, blank_frame, frame_id=i)
 
         print_id(im0, tracked_bbox_list)
         print_counts(im0, i, count_list, classes, calibration_params)
@@ -122,8 +125,8 @@ def detect(
 
         # Display the resulting tracking frame
         cv2.imshow('Tracking', im0)
-        cv2.waitKey(1)
-
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
         if webcam:  # Show live webcam
             cv2.imshow(weights, im0)
 
@@ -143,7 +146,7 @@ def detect(
             else:
                 cv2.imwrite(save_path, im0)
     cv2.imwrite("path.png", blank_frame)
-    output_file.close()
+
     if save_images and platform == 'darwin':  # macos
         os.system('open ' + output + ' ' + save_path)
 
@@ -155,7 +158,7 @@ if __name__ == '__main__':
     parser.add_argument('--weights', type=str, default='weights/best.pt', help='path to weights file')
     parser.add_argument('--images', type=str, default='data/samples', help='path to images')
     parser.add_argument('--img-size', type=int, default=704, help='size of each image dimension')
-    parser.add_argument('--conf-thres', type=float, default=0.56, help='object confidence threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.5, help='object confidence threshold')
     parser.add_argument('--nms-thres', type=float, default=0.5, help='iou threshold for non-maximum suppression')
     opt = parser.parse_args()
     print(opt)

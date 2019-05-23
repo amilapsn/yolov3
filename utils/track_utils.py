@@ -4,16 +4,22 @@ import time
 import torch
 from utils.utils import bbox_iou
 from utils.path_visualization_utils import draw_path
-from utils.lane_speed_utils import find_lane
+from utils.lane_speed_utils import find_lane, do_intersect
 from sklearn.externals import joblib
 
 NO_OF_CLASSES = 7
 DISTANCE_THRESHOLD = 50
 OLD_LIMIT = 20
 MIN_PRESENT = 10
+FPS = 30
+START_TO_END_DISTANCE = 5
 
 calibration_params = joblib.load("/home/madshan/video-analytics/traffic-poc/prior-implements/yolov3/weights/calibration_output.joblib")
 lane_list = calibration_params['lane_list']
+start_triggers = calibration_params['start_trigger_list']
+end_triggers = calibration_params['end_trigger_list']
+
+
 class NewBBox:
 
     def __init__(self, keypoints, descriptors, cls, probability, xyxy):
@@ -29,7 +35,7 @@ class NewBBox:
         self.probability = probability
 
     @classmethod
-    def no_keypoints(my_cls,cls, probability, xyxy):
+    def no_keypoints(my_cls, cls, probability, xyxy):
         return my_cls([], [], cls, probability, xyxy)
 
 
@@ -41,6 +47,7 @@ class TrackedBBox:
         self.name = 'v'+str(TrackedBBox.vehicleID)
         self.centroid_list = [new_bbox.centroid]
         self.lane_list = [new_bbox.lane]
+
         self.probability_list = np.zeros(NO_OF_CLASSES)
         self.probability_list[new_bbox.cls] += new_bbox.probability
         self.bbox = new_bbox.bbox
@@ -52,12 +59,18 @@ class TrackedBBox:
 
         TrackedBBox.vehicleID += 1
 
+        self.start_frame = None
+        self.end_frame = None
+        self.speed = None
+
     def print_details(self):
         print("BBox Name : ", self.name)
         print("Frames present : ", self.frames_present)
         print(self.probability_list)
+        if self.speed is not None:
+            print("speed : ", self.speed)
 
-    def update_location(self, new_bbox):
+    def update_location(self, new_bbox, frame_id):
         self.centroid_list.append(new_bbox.centroid)
         self.probability_list[new_bbox.cls] += new_bbox.probability
         self.lane_list.append(new_bbox.lane)
@@ -67,6 +80,21 @@ class TrackedBBox:
 
         self.frames_absent = 0
         self.frames_present += 1
+
+        if self.start_frame is None:
+            for l in range(start_triggers.shape[0]):
+                if do_intersect(start_triggers[l,:,:],np.array((self.centroid_list[-1],self.centroid_list[-2]))):
+                    print('\n\n',self.name, " triggered start.................\n")
+                    self.start_frame = frame_id
+
+        elif self.end_frame is None:
+            for l in range(end_triggers.shape[0]):
+                if do_intersect(end_triggers[l,:,:],np.array((self.centroid_list[-1],self.centroid_list[-2]))):
+                    print('\n\n',self.name, " triggered end.................\n")
+                    self.end_frame = frame_id
+                    time = (self.end_frame - self.start_frame)/FPS
+                    self.speed = START_TO_END_DISTANCE/time * 3.6
+
 
     def update_missing(self):
         self.frames_absent += 1
@@ -233,7 +261,8 @@ def validate_tracked_bbox(tracked_bbox, count_vector, label_vector, img):
     return count_vector
 
 
-def matrix_based_track_bboxes(bf, tracked_bbox_list, new_bbox_list, count_list, label_list, blank_frame, test_flag=False):
+def matrix_based_track_bboxes(bf, tracked_bbox_list, new_bbox_list, count_list, label_list, blank_frame,
+                              frame_id, test_flag=False):
 
     if (len(tracked_bbox_list)==0) & (len(new_bbox_list)>0):
         return initiate_tracked_bboxes(new_bbox_list), count_list
@@ -254,7 +283,7 @@ def matrix_based_track_bboxes(bf, tracked_bbox_list, new_bbox_list, count_list, 
                 unused_tracked_bboxes.remove(min_index[1])
 
                 updated_tracked_bbox = tracked_bbox_list[min_index[1]]
-                updated_tracked_bbox.update_location(new_bbox_list[min_index[0]])
+                updated_tracked_bbox.update_location(new_bbox_list[min_index[0]], frame_id)
                 new_tracked_bbox_list.append(updated_tracked_bbox)
 
                 distance_matrix[min_index[0],:] = float('inf')

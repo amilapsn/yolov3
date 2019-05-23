@@ -31,6 +31,49 @@ def find_sign(point, line):
     return d * d0 < 0
 
 
+def orientation (p, q, r):
+    """
+    To find orientation of ordered triplet (p, q, r).
+    The function returns following values
+    0 --> p, q and r are colinear
+    1 --> Clockwise
+    2 --> Counterclockwise
+    :param p, q, r: three points [x,y]
+    :return: orientation
+    """
+
+    val = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1])
+
+    if val==0:
+        return 0
+    elif val > 0:
+        return 1
+    else:
+        return 2
+
+
+def do_intersect(line1, line2):
+    """
+    Generic function to check if two line segments intersect
+    to be used as the trigger point to check when the vehicle crosses
+    the start and end triggers
+    (this implementation ignores coliniar intersection cases)
+    :param line1: first line [[x1,y1],[x2,y2]]
+    :param line2: second line
+    :return: True if lines intersect False if lines don't intersect
+    """
+
+    o1 = orientation(line1[0], line1[1], line2[0])
+    o2 = orientation(line1[0], line1[1], line2[1])
+    o3 = orientation(line2[0], line2[1], line1[0])
+    o4 = orientation(line2[0], line2[1], line1[1])
+
+    if o1 != o2 and o3 != o4:
+        return True
+    else:
+        return False
+
+
 if __name__ == "__main__":
     calibration_params = joblib.load("../weights/calibration_output.joblib")
     sorted_lanes = calibration_params['lane_list']
