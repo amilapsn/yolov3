@@ -8,6 +8,13 @@ colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(VEHICLES)]
 
 
 def get_str_from_tensor(xyxy):
+    """
+    Helper function to convert bounding box coordinates to string if needed to save to a txt file
+    :param xyxy: bounding box coordinates (list of four coordinates [x1,y1,x2,y2] corresponding to top left and bottom
+        right corners)
+    :return: string containg the bounding box coordinates
+    """
+
     string = "["
     for p in xyxy:
         string += str(p.item()) + ","
@@ -16,16 +23,32 @@ def get_str_from_tensor(xyxy):
 
 
 def draw_path(img,centroid_list, name):
+    """
+    Helper function to draw the path of the tracked bounding box centroid on a blank frame
+    :param img: blank frame
+    :param centroid_list: list of centroids of the trackedBBox
+    :param name: vehicleID
+    :return: None
+    """
     color = random.choice(colors)
-    cv2.putText(img, name, (int(centroid_list[0][0]),int(centroid_list[0][1])), 0, 1, color, thickness=2,
+    cv2.putText(img, name, (int(centroid_list[0][0]), int(centroid_list[0][1])), 0, 1, color, thickness=2,
                 lineType=cv2.LINE_AA)
-    cv2.putText(img, name, (int(centroid_list[-1][0]),int(centroid_list[-1][1])), 0, 1, color, thickness=2,
+    cv2.putText(img, name, (int(centroid_list[-1][0]), int(centroid_list[-1][1])), 0, 1, color, thickness=2,
                 lineType=cv2.LINE_AA)
-    centroid_list = np.array(centroid_list,dtype=int).reshape((-1,1,2))
+    centroid_list = np.array(centroid_list, dtype=int).reshape((-1, 1, 2))
     cv2.polylines(img, [centroid_list], False, color, 3)
 
 
 def print_counts(im0, i, count_list, classes, draw_lanes=None):
+    """
+    helper function to display the vehicle counts on the current frame
+    :param im0: current frame
+    :param i: frameID
+    :param count_list: list containing counts corresponding to each class
+    :param classes: list of names corresponding to each class
+    :param draw_lanes: dictionary of lanes and speed triggers. If none ignored
+    :return: None
+    """
 
     cv2.putText(im0, str(i), (100, 100), 0, 1, [255, 0, 0], thickness=2, lineType=cv2.LINE_AA)
     # cv2.line(im0,(0,360),(1920,360),[255, 0, 0], thickness=2)
