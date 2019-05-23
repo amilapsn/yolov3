@@ -2,8 +2,10 @@ import cv2
 import numpy as np
 from sklearn.externals import joblib
 
+from utils.calibration_utils import calculate_area_from_origin
+
 windowName = "frame"
-calibration_image = cv2.imread("blank_frame0.png")
+calibration_image = cv2.imread("data/blank_frames/blank_frame0.png")
 img_backup = calibration_image.copy()
 cv2.namedWindow(windowName)
 
@@ -15,9 +17,11 @@ lane_list = []
 start_trigger_list = []
 end_trigger_list = []
 
+
 def line_draw(event, x, y, flags, param):
     """
-    A callback function for interactive line drawing
+    A callback function for interactive line drawing for marking lanes and speed triggers
+    saves the (sorted) lane_list, start_trigger_list, end_trigger_list as a dictionary named calibration_output
     :param event: Mouse click event
     :param x: x coordinate of mouse during event trigger
     :param y: y coordinate of mouse during event trigger
@@ -60,7 +64,7 @@ def line_draw(event, x, y, flags, param):
             end_trigger_list.append([[ix, iy], [x, y]])
 
             if len(end_trigger_list) == exit_triggers:
-                cv2.imwrite('calibrated_frame.jpg', calibration_image)
+                cv2.imwrite('output/calibrated_frame.jpg', calibration_image)
                 lane_list = np.array(lane_list)
                 start_trigger_list = np.array(start_trigger_list)
                 end_trigger_list = np.array(end_trigger_list)
@@ -75,18 +79,6 @@ def line_draw(event, x, y, flags, param):
 
 
 cv2.setMouseCallback(windowName, line_draw)
-
-
-def calculate_area_from_origin(pt1, pt2):
-    """
-    This function calculates the area of the triangle joining origin and the two given points.
-    By ranking the areas we can get the order in which lines appear
-    :param pt1: point1. if passed as an nd array should be of shape 2 x n
-    :param pt2: point2. if passed as an nd array should be of shape 2 x n
-    :return: area
-    """
-    # print(pt1.shape)
-    return 0.5 * abs(pt1[0] * pt2[1] - pt1[1] * pt2[0])
 
 
 def main():

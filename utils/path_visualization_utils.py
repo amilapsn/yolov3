@@ -3,6 +3,10 @@ import numpy as np
 import pickle as pkl
 import random
 
+VEHICLES = 1000
+colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(VEHICLES)]
+
+
 def get_str_from_tensor(xyxy):
     string = "["
     for p in xyxy:
@@ -10,12 +14,13 @@ def get_str_from_tensor(xyxy):
 
     return string[:-2]+']'
 
-colors = pkl.load(open("pallete", "rb"))
 
 def draw_path(img,centroid_list, name):
     color = random.choice(colors)
-    cv2.putText(img, name, (int(centroid_list[0][0]),int(centroid_list[0][1])), 0, 1, color, thickness=2, lineType=cv2.LINE_AA)
-    cv2.putText(img, name, (int(centroid_list[-1][0]),int(centroid_list[-1][1])), 0, 1, color, thickness=2, lineType=cv2.LINE_AA)
+    cv2.putText(img, name, (int(centroid_list[0][0]),int(centroid_list[0][1])), 0, 1, color, thickness=2,
+                lineType=cv2.LINE_AA)
+    cv2.putText(img, name, (int(centroid_list[-1][0]),int(centroid_list[-1][1])), 0, 1, color, thickness=2,
+                lineType=cv2.LINE_AA)
     centroid_list = np.array(centroid_list,dtype=int).reshape((-1,1,2))
     cv2.polylines(img, [centroid_list], False, color, 3)
 
@@ -40,7 +45,7 @@ def print_counts(im0, i, count_list, classes, draw_lanes=None):
     cv2.putText(im0, classes[6] + " : " + str(count_list[6]), (100, 310), 0, 1, [255, 0, 255], thickness=2,
                 lineType=cv2.LINE_AA)
 
-    if draw_lanes != None:
+    if draw_lanes is not None:
         lane_lines = draw_lanes['lane_list']
         for i in range(lane_lines.shape[0]):
             cv2.line(im0,tuple(lane_lines[i,0,:]),tuple(lane_lines[i,1,:]),(255,0,0),2)

@@ -1,7 +1,7 @@
 import argparse
 import time
 from sys import platform
-from kalman_tracker.tracker import Tracker
+from utils.kalman_tracker.tracker import Tracker
 from utils.path_visualization_utils import get_str_from_tensor
 
 from models import *
@@ -17,7 +17,7 @@ def detect(
         data_cfg,
         weights,
         images,
-        output='output',  # output folder
+        output='output/video',  # output folder
         img_size=416,
         conf_thres=0.5,
         nms_thres=0.5,

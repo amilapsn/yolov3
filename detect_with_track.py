@@ -12,19 +12,19 @@ from utils.path_visualization_utils import draw_path, print_counts
 from utils.logging import Logger
 from sklearn.externals import joblib
 
-blank_frame = cv2.imread("blank_frame0.png")
+blank_frame = cv2.imread("data/blank_frames/blank_frame0.png")
 
 calibration_params = joblib.load("weights/calibration_output.joblib")
-lane_list = calibration_params['lane_list']
 
-sys.stdout = Logger("logs/validation_output.txt")
+sys.stdout = Logger("output/logs/validation_output.txt")
+
 
 def detect(
         cfg,
         data_cfg,
         weights,
         images,
-        output='output',  # output folder
+        output='output/video',  # output folder
         img_size=416,
         conf_thres=0.5,
         nms_thres=0.5,
@@ -127,8 +127,6 @@ def detect(
         cv2.imshow('Tracking', im0)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-        if webcam:  # Show live webcam
-            cv2.imshow(weights, im0)
 
         if save_images:  # Save generated image with detections
             if dataloader.mode == 'video':
@@ -145,7 +143,7 @@ def detect(
 
             else:
                 cv2.imwrite(save_path, im0)
-    cv2.imwrite("path.png", blank_frame)
+    cv2.imwrite("output/path.png", blank_frame)
 
     if save_images and platform == 'darwin':  # macos
         os.system('open ' + output + ' ' + save_path)

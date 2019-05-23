@@ -8,13 +8,13 @@ from models import *
 from utils.datasets import *
 from utils.utils import *
 
-op_file = open("bboxes.txt",'w')
+op_file = open("output/bboxes.txt",'w')
 def detect(
         cfg,
         data_cfg,
         weights,
         images,
-        output='output',  # output folder
+        output='output/video',  # output folder
         img_size=416,
         conf_thres=0.5,
         nms_thres=0.5,

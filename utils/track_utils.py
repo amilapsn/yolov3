@@ -14,7 +14,7 @@ MIN_PRESENT = 10
 FPS = 30
 START_TO_END_DISTANCE = 5
 
-calibration_params = joblib.load("/home/madshan/video-analytics/traffic-poc/prior-implements/yolov3/weights/calibration_output.joblib")
+calibration_params = joblib.load("weights/calibration_output.joblib")
 lane_list = calibration_params['lane_list']
 start_triggers = calibration_params['start_trigger_list']
 end_triggers = calibration_params['end_trigger_list']

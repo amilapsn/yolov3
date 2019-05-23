@@ -12,7 +12,9 @@ def mkdir_if_missing(dir_path):
         if e.errno != errno.EEXIST:
             raise
 
+
 class Logger(object):
+
     def __init__(self, fpath=None):
         self.console = sys.stdout
         self.file = None
