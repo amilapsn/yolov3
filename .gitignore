@@ -14,11 +14,18 @@
 *.avi
 *.data
 *.json
-
+*.part
 *.cfg
+*.zip
+*.tgz
+trainvalno5k.txt
 !cfg/yolov3*.cfg
 
 data/*
+coco/
+output/
+backup/
+weights/
 #!data/samples/zidane.jpg
 #!data/coco.names
 #!data/coco_paper.names
