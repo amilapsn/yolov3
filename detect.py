@@ -1,7 +1,8 @@
 import argparse
+import cv2
 import time
 from sys import platform
-from utils.track_utils import initiate_tracker, detect_key_points
+# from utils.track_utils import initiate_tracker, detect_key_points
 from utils.path_visualization_utils import get_str_from_tensor
 
 from models import *
@@ -90,14 +91,13 @@ def detect(
                 # kp,_ = detect_key_points(im0, xyxy, tracker)
 
                 # cv2.drawKeypoints(im0, kp, im0, color=(255, 0, 0))
-                if(cls!=6):
-                    plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
-                    string = get_str_from_tensor(xyxy)
-                    op_file.writelines(string+'\n')
+                plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
+                string = get_str_from_tensor(xyxy)
+                op_file.writelines(string+'\n')
 
 
         print('Done. (%.3fs)' % (time.time() - t))
-        cv2.imshow('frame', im0)
+        # cv2.imshow('frame', im0)
         if webcam:  # Show live webcam
             cv2.imshow(weights, im0)
 
@@ -107,11 +107,21 @@ def detect(
                     vid_path = save_path
                     if isinstance(vid_writer, cv2.VideoWriter):
                         vid_writer.release()  # release previous video writer
-                    width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                    height = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
                     fps = vid_cap.get(cv2.CAP_PROP_FPS)
-                    vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'avc1'), fps, (width, height))
+                    w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (w, h))
                 vid_writer.write(im0)
+
+                #     vid_path = save_path
+                #     if isinstance(vid_writer, cv2.VideoWriter):
+                #         vid_writer.release()  # release previous video writer
+                #     width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                #     height = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                #     fps = vid_cap.get(cv2.CAP_PROP_FPS)
+                #     vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'avc1'), fps, (width, height))
+                # vid_writer.write(im0)
 
 
             else:
@@ -131,6 +141,8 @@ if __name__ == '__main__':
     parser.add_argument('--img-size', type=int, default=416, help='size of each image dimension')
     parser.add_argument('--conf-thres', type=float, default=0.5, help='object confidence threshold')
     parser.add_argument('--nms-thres', type=float, default=0.5, help='iou threshold for non-maximum suppression')
+    parser.add_argument('--fourcc', type=str, default='mp4v', help='output video codec (verify ffmpeg support)')
+    parser.add_argument('--save_txt', action='store_true', help='save output in txt file')
     opt = parser.parse_args()
     print(opt)
 
@@ -142,5 +154,6 @@ if __name__ == '__main__':
             opt.images,
             img_size=opt.img_size,
             conf_thres=opt.conf_thres,
-            nms_thres=opt.nms_thres
+            nms_thres=opt.nms_thres,
+            save_txt=opt.save_txt
         )
