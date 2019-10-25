@@ -20,7 +20,6 @@ np.set_printoptions(linewidth=320, formatter={'float_kind': '{:11.5g}'.format}) 
 # Prevent OpenCV from multithreading (to use PyTorch DataLoader)
 cv2.setNumThreads(0)
 
-
 def float3(x):  # format floats to 3 decimals
     return float(format(x, '.3f'))
 
@@ -243,12 +242,12 @@ def wh_iou(box1, box2):
     return inter_area / union_area  # iou
 
 
-def compute_loss(p, targets):  # predictions, targets
+def compute_loss(p, targets, class_weights=None):  # predictions, targets
     FT = torch.cuda.FloatTensor if p[0].is_cuda else torch.FloatTensor
     lxy, lwh, lcls, lconf = FT([0]), FT([0]), FT([0]), FT([0])
     txy, twh, tcls, indices = targets
     MSE = nn.MSELoss()
-    CE = nn.CrossEntropyLoss()
+    CE = nn.CrossEntropyLoss(weight=class_weights)
     BCE = nn.BCEWithLogitsLoss()
 
     # Compute losses
