@@ -8,6 +8,7 @@ import test  # Import test.py to get mAP after each epoch
 from models import *
 from utils.datasets import *
 from utils.utils import *
+from utils import imw,clw
 
 
 def train(
@@ -15,13 +16,16 @@ def train(
         data_cfg,
         img_size=416,
         resume=False,
-        epochs=273,  # 500200 batches at bs 64, dataset length 117263
-        batch_size=16,
+        epochs=273*8,  # 500200 batches at bs 64, dataset length 117263
+        batch_size=8,
         accumulate=1,
         multi_scale=False,
         freeze_backbone=False,
         num_workers=4,
-        transfer=False  # Transfer learning (train only YOLO layers)
+        transfer=False,  # Transfer learning (train only YOLO layers)
+        use_custom_scheduler = False,
+        use_resampling = False,
+        weight_classes = False
 
 ):
     weights = 'weights' + os.sep
@@ -42,7 +46,7 @@ def train(
     model = Darknet(cfg, img_size).to(device)
 
     # Optimizer
-    lr0 = 0.001  # initial learning rate
+    lr0 = 3e-4  # initial learning rate
     optimizer = torch.optim.SGD(model.parameters(), lr=lr0, momentum=0.9, weight_decay=0.0005)
 
     cutoff = -1  # backbone reaches to cutoff layer
@@ -75,9 +79,27 @@ def train(
         else:
             cutoff = load_darknet_weights(model, weights + 'darknet53.conv.74')
 
-    # Set scheduler (reduce lr at epochs 218, 245, i.e. batches 400k, 450k)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[218, 245], gamma=0.1,
-                                                     last_epoch=start_epoch - 1)
+    # coefficients of initial learning rate lr0
+    def custom_schedule(epoch):
+        if epoch < 20:
+            return 1+2*epoch/20
+        if epoch < 95:
+            return 3
+        if epoch < 125:
+            return 1
+        if epoch < 218:
+            return 1/3.
+        if epoch < 245:
+            return .1
+        else:
+            return 0.01
+
+    if not use_custom_scheduler:
+        # Set scheduler (reduce lr at epochs 218, 245, i.e. batches 400k, 450k)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[218, 245], gamma=0.1,last_epoch=start_epoch - 1)
+
+    else:
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=custom_schedule, last_epoch=start_epoch - 1)
 
     # Dataset
     dataset = LoadImagesAndLabels(train_path, img_size=img_size, augment=True)
@@ -89,6 +111,11 @@ def train(
         sampler = torch.utils.data.distributed.DistributedSampler(dataset)
     else:
         sampler = None
+    if use_resampling:
+        # prob = percentages # probability of class 1 = 0.7, of 2 = 0.3 etc
+        weights_ = imw.f('vehicle-train.txt')
+        sampler = torch.utils.data.WeightedRandomSampler(weights_,len(weights_))
+
 
     # Dataloader
     dataloader = DataLoader(dataset,
@@ -106,6 +133,7 @@ def train(
     n_burnin = min(round(nB / 5 + 1), 1000)  # burn-in batches
     os.remove('train_batch0.jpg') if os.path.exists('train_batch0.jpg') else None
     os.remove('test_batch0.jpg') if os.path.exists('test_batch0.jpg') else None
+    annas = set()
     for epoch in range(start_epoch, epochs):
         model.train()
         print(('\n%8s%12s' + '%10s' * 7) % ('Epoch', 'Batch', 'xy', 'wh', 'conf', 'cls', 'total', 'nTargets', 'time'))
@@ -120,9 +148,10 @@ def train(
                     p.requires_grad = False if epoch == 0 else True
 
         mloss = defaultdict(float)  # mean loss
-        for i, (imgs, targets, _, _) in enumerate(dataloader):
+        for i, (imgs, targets, anna, _) in enumerate(dataloader):
             imgs = imgs.to(device)
             targets = targets.to(device)
+            # [annas.add(nna) for nna in anna]#exit()
 
             nt = len(targets)
             if nt == 0:  # if no targets continue
@@ -145,7 +174,11 @@ def train(
             target_list = build_targets(model, targets)
 
             # Compute loss
-            loss, loss_dict = compute_loss(pred, target_list)
+            if weight_classes:
+                class_weights = clw.f(train_path,parse_data_cfg(data_cfg)['names'])
+            else:
+                class_weights = None
+            loss, loss_dict = compute_loss(pred, target_list, class_weights)
 
             # Compute gradient
             loss.backward()
@@ -177,7 +210,8 @@ def train(
 
         # Write epoch results
         with open('results.txt', 'a') as file:
-            file.write(s + '%11.3g' * 5 % results + '\n')  # P, R, mAP, F1, test_loss
+            result_line = s + '%11.3g' * 5 % results + '\n'
+            file.write(result_line)  # P, R, mAP, F1, test_loss
 
         # Update best loss
         test_loss = results[4]
@@ -212,7 +246,7 @@ def train(
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--epochs', type=int, default=273, help='number of epochs')
-    parser.add_argument('--batch-size', type=int, default=16, help='size of each image batch')
+    parser.add_argument('--batch-size', type=int, default=8, help='size of each image batch')
     parser.add_argument('--accumulate', type=int, default=1, help='accumulate gradient x batches before optimizing')
     parser.add_argument('--cfg', type=str, default='cfg/yolov3-spp.cfg', help='cfg file path')
     parser.add_argument('--data-cfg', type=str, default='data/coco.data', help='coco.data file path')
@@ -226,6 +260,9 @@ if __name__ == '__main__':
     parser.add_argument('--world-size', default=1, type=int, help='number of nodes for distributed training')
     parser.add_argument('--backend', default='nccl', type=str, help='distributed backend')
     parser.add_argument('--nosave', action='store_true', help='do not save training results')
+    parser.add_argument('--use_custom_scheduler', action='store_true', help='use custom scheduler')
+    parser.add_argument('--use_resampling', action='store_true', help='resample images with classes with less probability')
+    parser.add_argument('--weight_classes', action='store_true', help='weight classes in the loss function')
     opt = parser.parse_args()
     print(opt, end='\n\n')
 
@@ -241,5 +278,8 @@ if __name__ == '__main__':
         batch_size=opt.batch_size,
         accumulate=opt.accumulate,
         multi_scale=opt.multi_scale,
-        num_workers=opt.num_workers
+        num_workers=opt.num_workers,
+        use_custom_scheduler=opt.use_custom_scheduler,
+        use_resampling=opt.use_resampling,
+        weight_classes=opt.weight_classes
     )
