@@ -113,7 +113,7 @@ def train(
         sampler = None
     if use_resampling:
         # prob = percentages # probability of class 1 = 0.7, of 2 = 0.3 etc
-        weights_ = imw.f('vehicle-train.txt')
+        weights_ = imw.f(train_path)
         sampler = torch.utils.data.WeightedRandomSampler(weights_,len(weights_))
 
 
